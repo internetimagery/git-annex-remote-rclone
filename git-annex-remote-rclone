@@ -37,6 +37,49 @@ setconfig () {
 	echo SETCONFIG "$1" "$2"
 }
 
+# Get config item, and fail if it's empty / not found.
+# Usage: getrequired <VAR_NAME> <CONFIG_KEY>
+getrequired () {
+	ask GETCONFIG "$2"
+	if [[ -z $RET ]]; then
+		echo INITREMOTE-FAILURE, "A required attribute is missing: $2"
+		exit 1
+	fi
+	declare -g $1="$RET"
+}
+
+# Collect and validate required variables are present (ie login creds)
+validate_creds () {
+	DEBUG "Checking rclone backend and credentials."
+	getrequired RCLONE_FAKE_VAR_BACKEND backend
+	case "$RCLONE_FAKE_VAR_BACKEND" in
+		S3)
+		# http://rclone.org/s3/
+			getrequired RCLONE_FAKE_VAR_ID id
+			getrequired RCLONE_FAKE_VAR_SECRET secret
+			;;
+		B2)
+		# http://rclone.org/b2/
+			getrequired RCLONE_FAKE_VAR_ID id
+			getrequired RCLONE_FAKE_VAR_SECRET secret
+			;;
+		DROPBOX)
+		# http://rclone.org/dropbox/
+			getrequired RCLONE_FAKE_VAR_TOKEN token
+			;;
+		LOCAL)
+		# http://rclone.org/local/
+		# Where are my credentials? WHO NEEDS EM?! :)
+		# TODO: Not sure if this should actually be supported though, as there is a
+		# dedicated remote already in git-annex for directories.
+			;;
+		*)
+			echo "INITREMOTE-FAILURE \"backend\" setting not recognized. Please use (S3|B2|DROPBOX|LOCAL)"
+			exit 1
+			;;
+	esac
+}
+
 validate_layout() {
 	if [ -z "$RCLONE_LAYOUT" ]; then
 		RCLONE_LAYOUT="lower"
@@ -76,6 +119,7 @@ calclocation () {
 			;;
 	esac
 }
+
 
 # Asks for some value, and stores it in RET
 ask () {
@@ -173,6 +217,9 @@ while read -r line; do
 			# (Note that this is not run every time, only when
 			# git annex initremote or git annex enableremote is
 			# run.)
+
+			# Check we have all the credentials we need to actually DO anything!
+			validate_creds
 
 			getconfig prefix
 			REMOTE_PREFIX=$RET
