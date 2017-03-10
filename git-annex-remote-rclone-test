@@ -24,15 +24,8 @@ runcmd () {
 }
 
 # Gets a value from the remote's configuration, and stores it in RET
-# Usage: getconfig <VAR_NAME> <CONFIG_KEY> [DEFAULT_VAL]
 getconfig () {
-	ask GETCONFIG "$2"
-	if [ -z $RET ];
-		then
-			declare -g $1="$3"
-		else
-			declare -g $1="$RET"
-	fi
+	ask GETCONFIG "$1"
 }
 
 # Stores a value in the remote's configuration.
@@ -40,36 +33,35 @@ setconfig () {
 	echo SETCONFIG "$1" "$2"
 }
 
+# Get config item, and fail if it's empty / not found.
+# Usage: getrequired <VAR_NAME> <CONFIG_KEY>
+getrequired () {
+	ask GETCONFIG "$2"
+	if [[ -z $RET ]]; then
+		echo INITREMOTE-FAILURE, "A required attribute is missing: $2"
+		exit 1
+	fi
+	declare -g $1="$RET"
+}
+
 # Collect and validate required variables are present (ie login creds)
 validate_creds () {
 	DEBUG "Checking rclone backend and credentials."
-	getconfig RCLONE_BACKEND backend
-	case "$RCLONE_BACKEND" in
+	getrequired RCLONE_FAKE_VAR_BACKEND backend
+	case "$RCLONE_FAKE_VAR_BACKEND" in
 		S3)
 		# http://rclone.org/s3/
-			getconfig RCLONE_FAKE_VAR_ID id
-			getconfig RCLONE_FAKE_VAR_SECRET secret
-			if [[ -z $RCLONE_FAKE_VAR_ID ]] || [[ -z $RCLONE_FAKE_VAR_SECRET ]]; then
-				echo "INITREMOTE-FAILURE S3 Please provide valid id and secret credentials."
-				exit 1
-			fi
+			getrequired RCLONE_FAKE_VAR_ID id
+			getrequired RCLONE_FAKE_VAR_SECRET secret
 			;;
 		B2)
 		# http://rclone.org/b2/
-			getconfig RCLONE_FAKE_VAR_ID id
-			getconfig RCLONE_FAKE_VAR_SECRET secret
-			if [[ -z $RCLONE_FAKE_VAR_ID ]] || [[ -z $RCLONE_FAKE_VAR_SECRET ]]; then
-				echo "INITREMOTE-FAILURE B2 Please provide valid id and secret credentials."
-				exit 1
-			fi
+			getrequired RCLONE_FAKE_VAR_ID id
+			getrequired RCLONE_FAKE_VAR_SECRET secret
 			;;
 		DROPBOX)
 		# http://rclone.org/dropbox/
-			getconfig RCLONE_FAKE_VAR_TOKEN token
-			if [[ -z $RCLONE_FAKE_VAR_TOKEN ]]; then
-				echo "INITREMOTE-FAILURE B2 Please provide valid id and secret credentials."
-				exit 1
-			fi
+			getrequired RCLONE_FAKE_VAR_TOKEN token
 			;;
 		*)
 			echo "INITREMOTE-FAILURE \"backend\" setting not recognized. Please use (S3|B2|DROPBOX)"
@@ -118,6 +110,7 @@ calclocation () {
 	esac
 }
 
+
 # Asks for some value, and stores it in RET
 ask () {
 	echo "$1" "$2"
@@ -150,17 +143,22 @@ while read -r line; do
 			# git annex initremote or git annex enableremote is
 			# run.)
 
-			getconfig REMOTE_PREFIX prefix "git-annex"
-
+			getconfig prefix
+			REMOTE_PREFIX=$RET
+			if [ -z "$REMOTE_PREFIX" ]; then
+                		REMOTE_PREFIX="git-annex"
+			fi
 			if [ "$REMOTE_PREFIX" == "/" ]; then
 		                echo INITREMOTE-FAILURE "storing objects directly in the root (/) is not supported"
 			fi
 			setconfig prefix $REMOTE_PREFIX
 
-			getconfig REMOTE_TARGET target
+			getconfig target
+			REMOTE_TARGET=$RET
 			setconfig target $REMOTE_TARGET
 
-			getconfig RCLONE_LAYOUT rclone_layout
+			getconfig rclone_layout
+			RCLONE_LAYOUT=$RET
 			validate_layout
 			setconfig rclone_layout $RCLONE_LAYOUT
 
@@ -179,11 +177,14 @@ while read -r line; do
 			# and do anything needed to get ready for using the
 			# special remote here.
 
-			getconfig REMOTE_PREFIX prefix
+			getconfig prefix
+			REMOTE_PREFIX="$RET"
 
-			getconfig REMOTE_TARGET target
+			getconfig target
+			REMOTE_TARGET="$RET"
 
-			getconfig RCLONE_LAYOUT rclone_layout
+			getconfig rclone_layout
+			RCLONE_LAYOUT="$RET"
 			validate_layout
 
             echo PREPARE-SUCCESS
