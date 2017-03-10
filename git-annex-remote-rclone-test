@@ -24,10 +24,10 @@ runcmd () {
 }
 
 # Gets a value from the remote's configuration, and stores it in RET
-# Usage: getconfig VARNAME CONFIGNAME DEFAULTVAL
+# Usage: getconfig <VAR_NAME> <CONFIG_KEY> [DEFAULT_VAL]
 getconfig () {
 	ask GETCONFIG "$2"
-	if [[ -n $3 ]] && [[ -z $RET ]];
+	if [ -z $RET ];
 		then
 			declare -g $1="$3"
 		else
@@ -42,13 +42,37 @@ setconfig () {
 
 # Collect and validate required variables are present (ie login creds)
 validate_creds () {
+	DEBUG "Checking rclone backend and credentials."
 	getconfig RCLONE_BACKEND backend
 	case "$RCLONE_BACKEND" in
-		s3)
-			ask DIRHASH-LOWER "$1"
+		S3)
+		# http://rclone.org/s3/
+			getconfig RCLONE_FAKE_VAR_ID id
+			getconfig RCLONE_FAKE_VAR_SECRET secret
+			if [[ -z $RCLONE_FAKE_VAR_ID ]] || [[ -z $RCLONE_FAKE_VAR_SECRET ]]; then
+				echo "INITREMOTE-FAILURE S3 Please provide valid id and secret credentials."
+				exit 1
+			fi
+			;;
+		B2)
+		# http://rclone.org/b2/
+			getconfig RCLONE_FAKE_VAR_ID id
+			getconfig RCLONE_FAKE_VAR_SECRET secret
+			if [[ -z $RCLONE_FAKE_VAR_ID ]] || [[ -z $RCLONE_FAKE_VAR_SECRET ]]; then
+				echo "INITREMOTE-FAILURE B2 Please provide valid id and secret credentials."
+				exit 1
+			fi
+			;;
+		DROPBOX)
+		# http://rclone.org/dropbox/
+			getconfig RCLONE_FAKE_VAR_TOKEN token
+			if [[ -z $RCLONE_FAKE_VAR_TOKEN ]]; then
+				echo "INITREMOTE-FAILURE B2 Please provide valid id and secret credentials."
+				exit 1
+			fi
 			;;
 		*)
-			echo "INITREMOTE-FAILURE \"backend\" setting not recognized"
+			echo "INITREMOTE-FAILURE \"backend\" setting not recognized. Please use (S3|B2|DROPBOX)"
 			exit 1
 			;;
 	esac
