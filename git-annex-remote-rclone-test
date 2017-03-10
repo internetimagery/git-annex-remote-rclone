@@ -24,13 +24,30 @@ runcmd () {
 }
 
 # Gets a value from the remote's configuration, and stores it in RET
+# Usage: getconfig VARNAME CONFIGNAME
 getconfig () {
-	ask GETCONFIG "$1"
+	ask GETCONFIG "$2"
+	declare -g $1="$RET"
 }
 
 # Stores a value in the remote's configuration.
 setconfig () {
 	echo SETCONFIG "$1" "$2"
+}
+
+# Collect and validate required variables are present (ie login creds)
+validate_creds () {
+	getconfig RCLONE_BACKEND backend
+	case "$RCLONE_BACKEND" in
+		s3)
+
+			ask DIRHASH-LOWER "$1"
+			;;
+		*)
+			echo "INITREMOTE-FAILURE \"backend\" setting not recognized"
+			exit 1
+			;;
+	esac
 }
 
 validate_layout() {
@@ -44,7 +61,7 @@ validate_layout() {
 			echo "INITREMOTE-FAILURE rclone_layout setting not recognized"
 			exit 1
 			;;
-	esac		
+	esac
 }
 
 # Sets LOC to the location to use to store a key.
@@ -60,7 +77,7 @@ calclocation () {
 			;;
 		nodir)
 			LOC="$REMOTE_TARGET:$REMOTE_PREFIX/"
-			;;	
+			;;
 		mixed)
 			ask DIRHASH "$1"
 			LOC="$REMOTE_TARGET:$REMOTE_PREFIX/$RET"
@@ -96,17 +113,16 @@ while read -r line; do
 		INITREMOTE)
 			# Do anything necessary to create resources
 			# used by the remote. Try to be idempotent.
-			# 
+			#
 			# Use GETCONFIG to get any needed configuration
 			# settings, and SETCONFIG to set any persistent
 			# configuration settings.
-			# 
+			#
 			# (Note that this is not run every time, only when
 			# git annex initremote or git annex enableremote is
 			# run.)
 
-			getconfig prefix
-			REMOTE_PREFIX=$RET
+			getconfig REMOTE_PREFIX prefix
 			if [ -z "$REMOTE_PREFIX" ]; then
                 		REMOTE_PREFIX="git-annex"
 			fi
@@ -115,12 +131,10 @@ while read -r line; do
 			fi
 			setconfig prefix $REMOTE_PREFIX
 
-			getconfig target
-			REMOTE_TARGET=$RET
+			getconfig REMOTE_TARGET target
 			setconfig target $REMOTE_TARGET
-			
-			getconfig rclone_layout
-			RCLONE_LAYOUT=$RET
+
+			getconfig RCLONE_LAYOUT rclone_layout
 			validate_layout
 			setconfig rclone_layout $RCLONE_LAYOUT
 
@@ -139,14 +153,11 @@ while read -r line; do
 			# and do anything needed to get ready for using the
 			# special remote here.
 
-			getconfig prefix
-			REMOTE_PREFIX="$RET"
-			
-			getconfig target
-			REMOTE_TARGET="$RET"
-			
-			getconfig rclone_layout
-			RCLONE_LAYOUT="$RET"
+			getconfig REMOTE_PREFIX prefix
+
+			getconfig REMOTE_TARGET target
+
+			getconfig RCLONE_LAYOUT rclone_layout
 			validate_layout
 
             echo PREPARE-SUCCESS
@@ -162,13 +173,13 @@ while read -r line; do
 					calclocation "$key"
 					if [ ! -e "$file" ]; then
 						echo TRANSFER-FAILURE STORE "$key" "asked to store non-existent file $file"
-					else	
+					else
 						if runcmd rclone copy "$file" "$LOC"; then
 							echo TRANSFER-SUCCESS STORE "$key"
 						else
 							echo TRANSFER-FAILURE STORE "$key"
 						fi
-					fi					
+					fi
 				;;
 				RETRIEVE)
 					# Retrieve from a location based on
@@ -197,8 +208,8 @@ while read -r line; do
 			else
 				# rclone 1.29 used 'Total objects: 0'
 				# rclone 1.30 uses 'directory not found'
-				if echo $check_result|grep 'Total objects: 0' >&2 || 
-				   echo $check_result|grep ' directory not found' >&2; then 
+				if echo $check_result|grep 'Total objects: 0' >&2 ||
+				   echo $check_result|grep ' directory not found' >&2; then
 					echo CHECKPRESENT-FAILURE "$key"
 				else
 					# When the directory does not exist,
@@ -224,7 +235,7 @@ while read -r line; do
 		                if echo $remove_result | grep " Failed to purge: Couldn't find directory: " >&2 ||
 				   echo $remove_result | grep ' no such file or directory' ||
 				   echo $remove_result | grep ' directory not found' >&2
-				then   
+				then
 					echo REMOVE-SUCCESS "$key"
 		                else
                 		        echo REMOVE-FAILURE "$key"
@@ -237,7 +248,7 @@ while read -r line; do
 			# to say that any other request is unsupported.
 			echo UNSUPPORTED-REQUEST
 		;;
-	esac	
+	esac
 done
 
 
