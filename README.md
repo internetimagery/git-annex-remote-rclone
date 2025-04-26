@@ -1,3 +1,5 @@
+ARCHIVED as rclone has direct support for gitannex now.
+
 # git-annex rclone special remote
 
 __Users are urged to upgrade to version 0.4 or higher immediately.
